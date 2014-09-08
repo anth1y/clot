@@ -3,7 +3,7 @@ package crypto_test
 import (
 	"crypto/rand"
 	"encoding/base64"
-	. "totp/crypto"
+	. "github.com/bradylove/clot/crypto"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

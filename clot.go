@@ -1,7 +1,7 @@
 package main
 
 import (
-	"clot/totp"
+	"github.com/bradylove/clot/totp"
 	"github.com/nsf/termbox-go"
 	"strconv"
 	"time"
@@ -13,9 +13,6 @@ const (
 	OtpColumnWidth    int = 11
 )
 
-var tokens []totp.Token
-var selectedToken int
-
 func main() {
 	err := termbox.Init()
 	if err != nil {
@@ -23,122 +20,133 @@ func main() {
 	}
 	defer termbox.Close()
 
-	tokens = make([]totp.Token, 0)
+	tokens := make([]totp.Token, 0)
 	tokens = append(tokens, totp.Token{
 		Id:       1,
-		Label:    "Brady.Love@nccgroup.com",
+		Label:    "bradylove@github",
 		Secret:   "ptcuyfm2sjjqgh5c",
 		Digits:   6,
 		TimeStep: 30,
 	})
-	tokens = append(tokens, totp.Token{
-		Id:       2,
-		Label:    "Brady.Love@gmail.com",
-		Secret:   "4wd3tgngs65ybcps",
-		Digits:   6,
-		TimeStep: 30,
-	})
-	tokens = append(tokens, totp.Token{
-		Id:       3,
-		Label:    "all token all the time",
-		Secret:   "zrbxo6diith5wqwd",
-		Digits:   6,
-		TimeStep: 30,
-	})
-	tokens = append(tokens, totp.Token{
-		Id:       4,
-		Label:    "tokin it token",
-		Secret:   "r3gtagvpj76q5j73",
-		Digits:   6,
-		TimeStep: 30,
-	})
-	tokens = append(tokens, totp.Token{
-		Id:       5,
-		Label:    "much token for much otp",
-		Secret:   "4wd3tgngs65ybcps",
-		Digits:   6,
-		TimeStep: 30,
-	})
-	tokens = append(tokens, totp.Token{
-		Id:       6,
-		Label:    "just another token",
-		Secret:   "mz2cypmurwfie5kx",
-		Digits:   6,
-		TimeStep: 30,
-	})
 
-	selectedToken = 0
+	initView := TokenTable{
+		SelectedRow: 0,
+		Tokens:      tokens,
+	}
 
-	go refresher()
+	initView.ActivateView()
+}
 
+type View interface {
+	ActivateView()
+	DrawView()
+}
+
+type TokenTable struct {
+	SelectedRow int
+	Tokens      []totp.Token
+}
+
+func (tt *TokenTable) ActivateView() {
+	go tt.RefreshLoop()
 loop:
 	for {
 		switch ev := termbox.PollEvent(); ev.Type {
 		case termbox.EventKey:
 			switch ev.Key {
-			case termbox.KeyArrowDown:
-				if selectedToken < (len(tokens) - 1) {
-					selectedToken++
-					DrawTokenTable(selectedToken)
-				}
-			case termbox.KeyArrowUp:
-				if selectedToken > 0 {
-					selectedToken--
-					DrawTokenTable(selectedToken)
-				}
 			case termbox.KeyEsc:
 				break loop
+			case termbox.KeyArrowDown:
+				if tt.SelectedRow < (len(tt.Tokens) - 1) {
+					tt.SelectedRow++
+					tt.DrawView()
+				}
+			case termbox.KeyArrowUp:
+				if tt.SelectedRow > 0 {
+					tt.SelectedRow--
+					tt.DrawView()
+				}
 			}
 		case termbox.EventResize:
-			DrawTokenTable(0)
+			tt.DrawView()
 		}
 	}
 }
 
-func refresher() {
-	DrawTokenTable(selectedToken)
-	time.Sleep(time.Second * 5)
-
-	refresher()
+func (tt *TokenTable) RefreshLoop() {
+	tt.DrawView()
+	time.Sleep(time.Second * 15)
+	tt.RefreshLoop()
 }
 
-func DrawNewTokenForm() {
-
-}
-
-func DrawTokenTable(selectedRow int) {
+func (tt *TokenTable) DrawView() {
 	termbox.Clear(termbox.ColorDefault, termbox.ColorDefault)
 
-	xPos := DrawColumn(0, IdColumnWidth, "ID")
-	xPos = DrawColumn(xPos, LabelColumnWidth(), "Label")
-	xPos = DrawColumn(xPos, SecretColumnWidth, "Secret")
-	xPos = DrawColumn(xPos, OtpColumnWidth, "OTP")
+	// Header & Table Columns
+	xPos := DrawColumn(0, IdColumnWidth, "ID", ColumnLeftConnector, ColumnCenterConnector)
+	xPos = DrawColumn(xPos, LabelColumnWidth(), "Label", ColumnCenterConnector, ColumnCenterConnector)
+	xPos = DrawColumn(xPos, SecretColumnWidth, "Secret", ColumnCenterConnector, ColumnCenterConnector)
+	xPos = DrawColumn(xPos, OtpColumnWidth, "OTP", ColumnCenterConnector, ColumnRightConnector)
 
-	for index, token := range tokens {
-		isSelectdToken := index == selectedRow
+	// Token Rows
+	for index, token := range tt.Tokens {
+		isSelectdToken := index == tt.SelectedRow
 		DrawRow(index+1, token, isSelectdToken)
 	}
+
+	// Footer
+	// tt.DrawFooter()
 
 	termbox.Flush()
 }
 
-func DrawColumn(xPos, width int, headText string) int {
+func (tt *TokenTable) DrawFooter() {
+	termWidth, termHeight := termbox.Size()
+
+	yPos := termHeight - 3
+
+	for i := 0; i < termWidth; i++ {
+		DrawText(i, yPos, string(HorizontalBar), termbox.ColorDefault, termbox.ColorDefault)
+	}
+}
+
+func DrawColumn(xPos, width int, headText string, startChar, endChar Symbol) int {
 	_, termHeight := termbox.Size()
 
-	DrawText(xPos, 0, string(0x2502), termbox.ColorBlack, termbox.ColorWhite)
+	termHeight = termHeight - 3
+
+	DrawText(xPos, 0, string(VerticalBar), termbox.ColorBlack, termbox.ColorWhite)
 	for i := 1; i < termHeight; i++ {
-		DrawLabel(xPos, i, string(0x2502))
+		DrawLabel(xPos, i, string(VerticalBar))
 	}
+	DrawLabel(xPos, termHeight, string(startChar))
 
 	xPos++
 
+	oldXPos := xPos
+
 	xPos = DrawHeader(xPos, 0, RightPadString(width, " "+headText))
-	DrawText(xPos, 0, string(0x2502), termbox.ColorBlack, termbox.ColorWhite)
+	DrawText(xPos, 0, string(VerticalBar), termbox.ColorBlack, termbox.ColorWhite)
 	for i := 1; i < termHeight; i++ {
-		DrawLabel(xPos, i, string(0x2502))
+		DrawLabel(xPos, i, string(VerticalBar))
+	}
+
+	DrawLabel(xPos, termHeight, string(endChar))
+	for i := 0; i < (xPos - oldXPos); i++ {
+		DrawLabel(i+oldXPos, termHeight, string(HorizontalBar))
 	}
 
 	return xPos
+}
+
+func RightPadString(size int, text string) string {
+	padSize := size - len(text)
+
+	for i := 0; i < padSize; i++ {
+		text = text + " "
+	}
+
+	return text
 }
 
 func DrawRow(yPos int, t totp.Token, selected bool) {
@@ -154,32 +162,22 @@ func DrawRow(yPos int, t totp.Token, selected bool) {
 		fg = termbox.ColorDefault
 	}
 
-	xPos = DrawText(xPos, yPos, string(0x2502), fg, bg)
+	xPos = DrawText(xPos, yPos, string(VerticalBar), fg, bg)
 	xPos = DrawText(xPos, yPos, RightPadString(IdColumnWidth, " "+strconv.Itoa(t.Id)), fg, bg)
-	xPos = DrawText(xPos, yPos, string(0x2502), fg, bg)
+	xPos = DrawText(xPos, yPos, string(VerticalBar), fg, bg)
 	xPos = DrawText(xPos, yPos, RightPadString(LabelColumnWidth(), " "+t.Label), fg, bg)
-	xPos = DrawText(xPos, yPos, string(0x2502), fg, bg)
+	xPos = DrawText(xPos, yPos, string(VerticalBar), fg, bg)
 	xPos = DrawText(xPos, yPos, RightPadString(SecretColumnWidth, " "+t.Secret), fg, bg)
-	xPos = DrawText(xPos, yPos, string(0x2502), fg, bg)
+	xPos = DrawText(xPos, yPos, string(VerticalBar), fg, bg)
 	xPos = DrawText(xPos, yPos, RightPadString(OtpColumnWidth, " "+t.Now()), fg, bg)
-	xPos = DrawText(xPos, yPos, string(0x2502), fg, bg)
+	xPos = DrawText(xPos, yPos, string(VerticalBar), fg, bg)
 }
 
 func LabelColumnWidth() int {
 	termWidth, _ := termbox.Size()
-	labelWidth := termWidth - 43
+	labelWidth := termWidth - (IdColumnWidth + SecretColumnWidth + OtpColumnWidth + 5)
 
 	return labelWidth
-}
-
-func RightPadString(size int, text string) string {
-	padSize := size - len(text)
-
-	for i := 0; i < padSize; i++ {
-		text = text + " "
-	}
-
-	return text
 }
 
 func DrawHeader(x, y int, text string) int {

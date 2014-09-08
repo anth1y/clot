@@ -1,8 +1,8 @@
 package totp_test
 
 import (
+	. "github.com/bradylove/clot/totp"
 	"time"
-	. "totp/totp"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
