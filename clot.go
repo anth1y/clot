@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/bradylove/clot/totp"
 	"github.com/nsf/termbox-go"
+	"os/exec"
 	"strconv"
 	"time"
 )
@@ -11,6 +12,8 @@ const (
 	IdColumnWidth     int = 5
 	SecretColumnWidth int = 22
 	OtpColumnWidth    int = 11
+
+	Password string = "password"
 )
 
 func main() {
@@ -20,18 +23,12 @@ func main() {
 	}
 	defer termbox.Close()
 
-	tokens := make([]totp.Token, 0)
-	tokens = append(tokens, totp.Token{
-		Id:       1,
-		Label:    "bradylove@github",
-		Secret:   "ptcuyfm2sjjqgh5c",
-		Digits:   6,
-		TimeStep: 30,
-	})
+	ts := NewTokenStore("/Users/brady/.clot", Password)
 
 	initView := TokenTable{
+		IsVisible:   true,
 		SelectedRow: 0,
-		Tokens:      tokens,
+		TokenStore:  ts,
 	}
 
 	initView.ActivateView()
@@ -43,21 +40,38 @@ type View interface {
 }
 
 type TokenTable struct {
+	IsVisible   bool
 	SelectedRow int
 	Tokens      []totp.Token
+	TokenStore  TokenStore
 }
 
 func (tt *TokenTable) ActivateView() {
 	go tt.RefreshLoop()
 loop:
 	for {
-		switch ev := termbox.PollEvent(); ev.Type {
+		ev := termbox.PollEvent()
+
+		switch ev.Ch {
+		case 'c':
+			tt.CopySelectedTokenToClipboard()
+		case 'a':
+			tt.IsVisible = false
+			newToken := NewTokenForm()
+
+			// tt.TokenStore.V1Tokens = append(tt.Tokens, newToken)
+			tt.TokenStore.AddToken(newToken)
+
+			tt.DrawView()
+		}
+
+		switch ev.Type {
 		case termbox.EventKey:
 			switch ev.Key {
 			case termbox.KeyEsc:
 				break loop
 			case termbox.KeyArrowDown:
-				if tt.SelectedRow < (len(tt.Tokens) - 1) {
+				if tt.SelectedRow < (tt.TokenStore.TokenCount() - 1) {
 					tt.SelectedRow++
 					tt.DrawView()
 				}
@@ -74,9 +88,49 @@ loop:
 }
 
 func (tt *TokenTable) RefreshLoop() {
-	tt.DrawView()
-	time.Sleep(time.Second * 15)
-	tt.RefreshLoop()
+	if tt.IsVisible {
+		tt.DrawView()
+		time.Sleep(time.Second * 5)
+		tt.RefreshLoop()
+	}
+}
+
+func (tt *TokenTable) DrawOptions() {
+	_, termHeight := termbox.Size()
+
+	yPos := termHeight - 2
+
+	xPos := DrawLabel(1, yPos, "c - Copy OTP to clipboard")
+	xPos = DrawLabel(xPos+3, yPos, "a - Add token")
+	xPos = DrawLabel(xPos+3, yPos, "Esc - Exit")
+}
+
+func (tt *TokenTable) CopySelectedTokenToClipboard() {
+	token := tt.TokenStore.Tokens()[tt.SelectedRow]
+
+	WriteToClipboard(token.Now())
+}
+
+func WriteToClipboard(text string) error {
+	copyCmd := exec.Command("reattach-to-user-namespace", "pbcopy")
+	in, err := copyCmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+
+	if err := copyCmd.Start(); err != nil {
+		return err
+	}
+
+	if _, err := in.Write([]byte(text)); err != nil {
+		return err
+	}
+
+	if err := in.Close(); err != nil {
+		return err
+	}
+
+	return copyCmd.Wait()
 }
 
 func (tt *TokenTable) DrawView() {
@@ -89,15 +143,17 @@ func (tt *TokenTable) DrawView() {
 	xPos = DrawColumn(xPos, OtpColumnWidth, "OTP", ColumnCenterConnector, ColumnRightConnector)
 
 	// Token Rows
-	for index, token := range tt.Tokens {
+	for index, token := range tt.TokenStore.Tokens() {
 		isSelectdToken := index == tt.SelectedRow
 		DrawRow(index+1, token, isSelectdToken)
 	}
 
 	// Footer
 	// tt.DrawFooter()
+	tt.DrawOptions()
 
 	termbox.Flush()
+	tt.IsVisible = true
 }
 
 func (tt *TokenTable) DrawFooter() {

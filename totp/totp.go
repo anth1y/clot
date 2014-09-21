@@ -23,12 +23,13 @@ var digitsPower []int = []int{
 }
 
 type Token struct {
-	Id       int
-	Label    string
-	Secret   string
-	Digest   string
-	Digits   int
-	TimeStep int
+	Id              int
+	Label           string
+	Secret          string `json:"-"`
+	EncryptedSecret string
+	Digest          string
+	Digits          int
+	TimeStep        int
 }
 
 func (t *Token) Now() string {
