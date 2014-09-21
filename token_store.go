@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/bradylove/clot/crypto"
 	"github.com/bradylove/clot/totp"
 	"io/ioutil"
@@ -20,7 +21,7 @@ type TokenStore struct {
 
 type TokenStoreData struct {
 	SaltB64  string
-	V1Tokens []totp.Token
+	V1Tokens []*totp.Token
 }
 
 func NewTokenStore(path, password string) (store TokenStore) {
@@ -34,6 +35,10 @@ func NewTokenStore(path, password string) (store TokenStore) {
 		if err != nil {
 			panic(err)
 		}
+
+		for _, t := range store.TokenStoreData.V1Tokens {
+			t.Secret = store.Encryptor.DecodeAndDecrypt(t.EncryptedSecret)
+		}
 	} else {
 		salt := make([]byte, 32)
 		rand.Read(salt)
@@ -42,7 +47,7 @@ func NewTokenStore(path, password string) (store TokenStore) {
 
 		store.TokenStoreData = TokenStoreData{
 			SaltB64:  saltb64,
-			V1Tokens: []totp.Token{},
+			V1Tokens: []*totp.Token{},
 		}
 
 		store.Encryptor = crypto.New(store.Password, store.TokenStoreData.SaltB64)
@@ -94,9 +99,7 @@ func (s *TokenStore) Load() error {
 
 	s.Encryptor = crypto.New(s.Password, s.TokenStoreData.SaltB64)
 
-	for _, t := range s.TokenStoreData.V1Tokens {
-		t.Secret = s.Encryptor.DecodeAndDecrypt(t.EncryptedSecret)
-	}
+	fmt.Println("Before decrypting secrets!")
 
 	return nil
 }
@@ -104,7 +107,7 @@ func (s *TokenStore) Load() error {
 func (s *TokenStore) AddToken(t totp.Token) {
 	t.EncryptedSecret = s.Encryptor.EncryptAndEncode(t.Secret)
 
-	s.TokenStoreData.V1Tokens = append(s.TokenStoreData.V1Tokens, t)
+	s.TokenStoreData.V1Tokens = append(s.TokenStoreData.V1Tokens, &t)
 	s.Save()
 }
 
@@ -112,6 +115,6 @@ func (s *TokenStore) TokenCount() int {
 	return len(s.TokenStoreData.V1Tokens)
 }
 
-func (s *TokenStore) Tokens() []totp.Token {
+func (s *TokenStore) Tokens() []*totp.Token {
 	return s.TokenStoreData.V1Tokens
 }

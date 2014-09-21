@@ -42,7 +42,6 @@ type View interface {
 type TokenTable struct {
 	IsVisible   bool
 	SelectedRow int
-	Tokens      []totp.Token
 	TokenStore  TokenStore
 }
 
@@ -205,7 +204,7 @@ func RightPadString(size int, text string) string {
 	return text
 }
 
-func DrawRow(yPos int, t totp.Token, selected bool) {
+func DrawRow(yPos int, t *totp.Token, selected bool) {
 	xPos := 0
 
 	var fg, bg termbox.Attribute
